@@ -158,8 +158,9 @@ Returns:
 
 Accepted arguments:
 
-- `url`
-- `max_chars`
+- `url` (required)
+- `max_chars` — cap on returned markdown length (default 4000, bounded by server config)
+- `max_body_bytes` — max HTTP response body size to download in bytes (default 5 MiB, bounded by `URL_READ_MAX_BYTES`)
 
 Returned payload:
 

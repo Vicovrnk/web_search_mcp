@@ -41,7 +41,11 @@ def register_read_url_tools(mcp: FastMCP) -> None:
 
     @mcp.tool(
         name="read_url",
-        description="Fetch a public HTML page and return markdown-like readable content.",
+        description=(
+            "Fetch a public HTML page and return markdown-like readable content. "
+            "Parameters: `url` (required), `max_chars` (output length limit), "
+            "`max_body_bytes` (download size limit for the raw HTTP body)."
+        ),
     )
     async def read_url(
         url: Annotated[
