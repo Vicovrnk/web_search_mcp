@@ -1,0 +1,31 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "searxng-mcp-search"
+version = "0.1.0"
+description = "Remote MCP web search server backed by a self-hosted SearXNG instance."
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+  "beautifulsoup4",
+  "fastmcp",
+  "httpx",
+  "pydantic",
+  "uvicorn",
+]
+
+[project.optional-dependencies]
+dev = [
+  "pytest",
+]
+
+[project.scripts]
+searxng-mcp-search = "mcp_server.app:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["mcp_server"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

@@ -1,0 +1,17 @@
+# Minimal local limiter configuration.
+# The file must exist when `server.limiter` is enabled.
+
+[botdetection.ip_limit]
+link_token = false
+
+[botdetection.ip_lists]
+# Allow internal Compose and loopback traffic to reach SearXNG without
+# tripping the limiter. The SearXNG service is not published on the host,
+# so only containers on the private network can use these ranges here.
+pass_ip = [
+  '127.0.0.0/8',
+  '10.0.0.0/8',
+  '172.16.0.0/12',
+  '192.168.0.0/16',
+  'fd00::/8',
+]
