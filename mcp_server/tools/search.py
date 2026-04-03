@@ -189,6 +189,7 @@ def register_search_tools(mcp: FastMCP) -> None:
     @mcp.tool(
         name="web_search",
         description="Search the public web through a self-hosted SearXNG instance.",
+        tags={"general_search", "web", "searxng"},
     )
     async def web_search(
         query: Annotated[

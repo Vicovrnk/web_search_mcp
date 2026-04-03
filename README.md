@@ -1,24 +1,28 @@
 # SearXNG MCP Search
 
-Remote MCP server backed by a self-hosted SearXNG instance for both web search
-and static HTML page reading.
+MIT-licensed remote MCP server backed by a self-hosted [SearXNG](https://github.com/searxng/searxng)
+instance for both web search and static HTML page reading.
 
-The stack runs three services with Docker Compose:
+The stack runs these services with Docker Compose:
 
-- `valkey` for SearXNG limiter state
-- `searxng` as the metasearch backend
-- `mcp-web-search` as a Streamable HTTP MCP server on `/mcp`
+- [`valkey`](https://valkey.io/) for SearXNG limiter state
+- [`searxng`](https://github.com/searxng/searxng) as the metasearch backend
+- `readability` as a small local wrapper around [Mozilla Readability](https://github.com/mozilla/readability) for HTML-to-text extraction used by `read_url`
+- `mcp-web-search` as a [FastMCP](https://github.com/jlowin/fastmcp)-based Streamable HTTP MCP server on `/mcp` (web search + URL reading)
+- `wikipedia-mcp` as a second Streamable HTTP MCP server on `/mcp` ([wikipedia-mcp on PyPI](https://pypi.org/project/wikipedia-mcp/))
 
-Only the MCP service is exposed on the host by default. SearXNG stays on the
-internal Compose network but can still reach external search engines.
+SearXNG stays on the internal Compose network by default. Both MCP services are
+exposed on the host (`8000` and `8001` by default) so clients can connect to
+either or both.
 
 ## Features
 
-- Remote MCP over Streamable HTTP
-- `web_search` tool with structured results
-- `read_url` tool for markdown-like page extraction from public HTML URLs
-- `search_config` tool for enabled categories and engines
-- Health checks for both the MCP server and SearXNG
+- Remote MCP over Streamable HTTP (SearXNG stack + optional Wikipedia stack)
+- `web_search` tool with structured results (tags: `general_search`, `web`, `searxng`)
+- `read_url` tool for markdown-like page extraction from public HTML URLs (tags: `general_read`, `readability`, `web`)
+- `search_config` tool for enabled categories and engines (tags: `searxng`, `meta`)
+- Wikipedia MCP tools (`search_wikipedia`, `get_article`, …) on a separate endpoint; see the [wikipedia-mcp](https://pypi.org/project/wikipedia-mcp/) package for the full list
+- Health checks for MCP services, SearXNG, and supporting containers
 - Request timeouts, retries, result limits, and input validation
 
 ## Prerequisites
@@ -47,6 +51,13 @@ Relevant variables:
 - `URL_READ_TIMEOUT_SECONDS` default `20`
 - `URL_READ_MAX_BYTES` default `1000000`
 - `URL_READ_MAX_CHARS` default `12000`
+- `WIKIPEDIA_MCP_PORT` default `8001` (host port for the Wikipedia MCP container)
+- `WIKIPEDIA_LANGUAGE` default `en` (passed into the Wikipedia MCP process; see upstream CLI)
+- `WIKIPEDIA_ACCESS_TOKEN` optional (reduces Wikipedia API rate limiting when set)
+
+To use a Wikipedia country/locale instead of a raw language code, override the
+`wikipedia-mcp` service `command` in Compose (for example `--country US`) as
+documented in [wikipedia-mcp](https://pypi.org/project/wikipedia-mcp/).
 
 ## Run The Stack
 
@@ -54,13 +65,32 @@ Relevant variables:
 docker compose up --build
 ```
 
-The MCP endpoint becomes available at:
+MCP endpoints:
 
-- `http://localhost:8000/mcp`
+- SearXNG-backed server: `http://localhost:8000/mcp`
+- Wikipedia server: `http://localhost:8001/mcp`
 
-The health endpoint becomes available at:
+The SearXNG MCP health endpoint:
 
 - `http://localhost:8000/healthz`
+
+### IDE / Cursor (two remote servers)
+
+Point each server at its Streamable HTTP URL (exact config keys depend on your
+client version; typical shape):
+
+```json
+{
+  "mcpServers": {
+    "searxng-mcp-search": {
+      "url": "http://localhost:8000/mcp"
+    },
+    "wikipedia-mcp": {
+      "url": "http://localhost:8001/mcp"
+    }
+  }
+}
+```
 
 ## Smoke Test
 
@@ -70,7 +100,7 @@ Check readiness:
 curl http://localhost:8000/healthz
 ```
 
-Call the MCP server from Python with FastMCP's client:
+Call the MCP server from Python with [FastMCP](https://github.com/jlowin/fastmcp)'s client:
 
 ```python
 import asyncio
@@ -174,7 +204,15 @@ Returned payload:
 
 ## Local Tests
 
-Install the package and test dependencies, then run `pytest`:
+Install the package and test dependencies, then run `pytest`. On Windows, use the
+project virtualenv interpreter:
+
+```powershell
+.\.venv\Scripts\python.exe -m pip install -e ".[dev]"
+.\.venv\Scripts\python.exe -m pytest
+```
+
+On macOS or Linux:
 
 ```bash
 python -m pip install -e ".[dev]"
@@ -186,3 +224,7 @@ pytest
 - SearXNG JSON output is enabled in `searxng/core-config/settings.yml`.
 - The limiter is enabled and backed by Valkey.
 - SearXNG itself does not publish a host port in the default Compose setup.
+
+## License
+
+This project is available under the [MIT License](https://opensource.org/license/mit).

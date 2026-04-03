@@ -79,6 +79,7 @@ def register_config_tools(mcp: FastMCP) -> None:
     @mcp.tool(
         name="search_config",
         description="Inspect enabled SearXNG categories, engines, and safe-search defaults.",
+        tags={"searxng", "meta"},
     )
     async def search_config() -> dict[str, Any]:
         """Return public SearXNG config that helps clients form better searches."""

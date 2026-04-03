@@ -46,6 +46,7 @@ def register_read_url_tools(mcp: FastMCP) -> None:
             "Parameters: `url` (required), `max_chars` (output length limit), "
             "`max_body_bytes` (download size limit for the raw HTTP body)."
         ),
+        tags={"general_read", "readability", "web"},
     )
     async def read_url(
         url: Annotated[
