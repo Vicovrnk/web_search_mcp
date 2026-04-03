@@ -1,29 +1,75 @@
-# SearXNG MCP Search
+# Open Information MCP Toolkit
 
-MIT-licensed remote MCP server backed by a self-hosted [SearXNG](https://github.com/searxng/searxng)
-instance for both web search and static HTML page reading.
+Self-hosted, MIT-licensed MCP toolkit for agents that need access to open
+information without depending on mandatory third-party API keys. The stack is
+delivered as one Docker Compose bundle, but its capabilities are intentionally
+split into separate MCP endpoints:
 
-The stack runs these services with Docker Compose:
+- one general endpoint for broad internet access
+- one specialized endpoint per focused knowledge domain
+
+Today this repository ships:
+
+- a general web endpoint implemented in this repo and backed by
+  [SearXNG](https://github.com/searxng/searxng) plus
+  [Mozilla Readability](https://github.com/mozilla/readability)
+- a specialized encyclopedia endpoint backed by
+  [wikipedia-mcp](https://pypi.org/project/wikipedia-mcp/)
+
+## Concept
+
+The toolkit is built around a simple separation of responsibilities:
+
+- `general` tools expose reusable open-web primitives that almost any agent needs
+- `specialized` tools expose deeper workflows for one domain and live behind
+  their own endpoint
+- the default stack relies on open-source components and works without
+  mandatory external API keys
+- the whole bundle is delivered as one Docker stack so clients can enable only
+  the endpoints they need
+
+This structure leaves room for future specialized endpoints such as library
+documentation research or YouTube transcription without changing the general
+endpoint contract.
+
+## Current Toolkit Layout
+
+| Capability class | Default endpoint | Purpose | Current tools |
+| --- | --- | --- | --- |
+| General | `http://localhost:8000/mcp` | Broad web search, page reading, and search capability discovery | `web_search`, `read_url`, `search_config` |
+| Specialized | `http://localhost:8001/mcp` | Encyclopedic and subject-area research through Wikipedia | `search_wikipedia`, `get_article`, `get_summary`, ... |
+
+## Services In The Compose Stack
 
 - [`valkey`](https://valkey.io/) for SearXNG limiter state
-- [`searxng`](https://github.com/searxng/searxng) as the metasearch backend
-- `readability` as a small local wrapper around [Mozilla Readability](https://github.com/mozilla/readability) for HTML-to-text extraction used by `read_url`
-- `mcp-web-search` as a [FastMCP](https://github.com/jlowin/fastmcp)-based Streamable HTTP MCP server on `/mcp` (web search + URL reading)
-- `wikipedia-mcp` as a second Streamable HTTP MCP server on `/mcp` ([wikipedia-mcp on PyPI](https://pypi.org/project/wikipedia-mcp/))
+- [`searxng`](https://github.com/searxng/searxng) as the metasearch backend for
+  the general endpoint
+- `readability` as a local HTML-to-text extraction service for the general
+  endpoint
+- `mcp-web-search` as the in-repo
+  [FastMCP](https://github.com/jlowin/fastmcp)-based Streamable HTTP server
+  that exposes the general tools
+- `wikipedia-mcp` as a separate Streamable HTTP server for the specialized
+  Wikipedia toolset
 
-SearXNG stays on the internal Compose network by default. Both MCP services are
-exposed on the host (`8000` and `8001` by default) so clients can connect to
-either or both.
+SearXNG and Readability stay on the internal Compose network by default. Only
+the MCP endpoints are exposed on the host.
 
-## Features
+## Contract Catalog
 
-- Remote MCP over Streamable HTTP (SearXNG stack + optional Wikipedia stack)
-- `web_search` tool with structured results (tags: `general_search`, `web`, `searxng`)
-- `read_url` tool for markdown-like page extraction from public HTML URLs (tags: `general_read`, `readability`, `web`)
-- `search_config` tool for enabled categories and engines (tags: `searxng`, `meta`)
-- Wikipedia MCP tools (`search_wikipedia`, `get_article`, …) on a separate endpoint; see the [wikipedia-mcp](https://pypi.org/project/wikipedia-mcp/) package for the full list
-- Health checks for MCP services, SearXNG, and supporting containers
-- Request timeouts, retries, result limits, and input validation
+The high-level concept lives in this README. Detailed contracts are grouped by
+capability class under `contracts/`:
+
+- `contracts/README.md` for the contract catalog and extension rules
+- `contracts/general/web_search.md`
+- `contracts/general/read_url.md`
+- `contracts/general/search_config.md`
+- `contracts/specialized/wikipedia.md`
+
+The general endpoint contracts are owned by this repository. Specialized
+endpoint contracts may wrap upstream MCP packages; in that case this repository
+documents the integration surface and points to the upstream implementation
+ownership clearly.
 
 ## Prerequisites
 
@@ -36,7 +82,7 @@ either or both.
 Environment variables are optional because Compose provides sensible defaults.
 If you want overrides, define them in `.env`.
 
-Relevant variables:
+General endpoint (`mcp-web-search`) variables:
 
 - `MCP_PORT` default `8000`
 - `SEARXNG_SECRET` default `change-me`
@@ -47,13 +93,20 @@ Relevant variables:
 - `MAX_QUERY_LENGTH` default `512`
 - `MAX_PAGE_NUMBER` default `10`
 - `DEFAULT_SAFE_SEARCH` default `1`
-- `VERIFY_SSL` default `false`
 - `URL_READ_TIMEOUT_SECONDS` default `20`
-- `URL_READ_MAX_BYTES` default `1000000`
+- `URL_READ_MAX_BYTES` default `5242880`
 - `URL_READ_MAX_CHARS` default `12000`
-- `WIKIPEDIA_MCP_PORT` default `8001` (host port for the Wikipedia MCP container)
-- `WIKIPEDIA_LANGUAGE` default `en` (passed into the Wikipedia MCP process; see upstream CLI)
-- `WIKIPEDIA_ACCESS_TOKEN` optional (reduces Wikipedia API rate limiting when set)
+- `READABILITY_SERVICE_URL` default `http://readability:3010`
+- `READABILITY_FALLBACK_ON_FAILURE` default `true`
+- `VERIFY_SSL` default `false`
+- `USER_AGENT` default `searxng-mcp-search/0.1.0`
+
+Specialized Wikipedia endpoint (`wikipedia-mcp`) variables:
+
+- `WIKIPEDIA_MCP_PORT` default `8001`
+- `WIKIPEDIA_LANGUAGE` default `en`
+- `WIKIPEDIA_ACCESS_TOKEN` optional; reduces Wikipedia API rate limiting when
+  set
 
 To use a Wikipedia country/locale instead of a raw language code, override the
 `wikipedia-mcp` service `command` in Compose (for example `--country US`) as
@@ -65,27 +118,23 @@ documented in [wikipedia-mcp](https://pypi.org/project/wikipedia-mcp/).
 docker compose up --build
 ```
 
-MCP endpoints:
+Default host endpoints:
 
-- SearXNG-backed server: `http://localhost:8000/mcp`
-- Wikipedia server: `http://localhost:8001/mcp`
+- General MCP endpoint: `http://localhost:8000/mcp`
+- General health endpoint: `http://localhost:8000/healthz`
+- Specialized Wikipedia MCP endpoint: `http://localhost:8001/mcp`
 
-The SearXNG MCP health endpoint:
+### IDE / Cursor
 
-- `http://localhost:8000/healthz`
-
-### IDE / Cursor (two remote servers)
-
-Point each server at its Streamable HTTP URL (exact config keys depend on your
-client version; typical shape):
+Point each server at its Streamable HTTP URL:
 
 ```json
 {
   "mcpServers": {
-    "searxng-mcp-search": {
+    "general-web-tools": {
       "url": "http://localhost:8000/mcp"
     },
-    "wikipedia-mcp": {
+    "wikipedia-research": {
       "url": "http://localhost:8001/mcp"
     }
   }
@@ -94,13 +143,14 @@ client version; typical shape):
 
 ## Smoke Test
 
-Check readiness:
+Check general endpoint readiness:
 
 ```bash
 curl http://localhost:8000/healthz
 ```
 
-Call the MCP server from Python with [FastMCP](https://github.com/jlowin/fastmcp)'s client:
+Call both MCP endpoints from Python with
+[FastMCP](https://github.com/jlowin/fastmcp)'s client:
 
 ```python
 import asyncio
@@ -109,8 +159,8 @@ from fastmcp import Client
 
 
 async def main() -> None:
-    async with Client("http://127.0.0.1:8000/mcp") as client:
-        search_response = await client.call_tool(
+    async with Client("http://127.0.0.1:8000/mcp") as general_client:
+        search_response = await general_client.call_tool(
             "web_search",
             {
                 "query": "JAX vmap tutorial",
@@ -121,10 +171,10 @@ async def main() -> None:
         )
         print(search_response)
 
-        config_response = await client.call_tool("search_config", {})
+        config_response = await general_client.call_tool("search_config", {})
         print(config_response)
 
-        page_response = await client.call_tool(
+        page_response = await general_client.call_tool(
             "read_url",
             {
                 "url": "https://jax.readthedocs.io/en/latest/quickstart.html",
@@ -133,79 +183,24 @@ async def main() -> None:
         )
         print(page_response)
 
+    async with Client("http://127.0.0.1:8001/mcp") as wikipedia_client:
+        wikipedia_response = await wikipedia_client.call_tool(
+            "search_wikipedia",
+            {
+                "query": "JAX",
+                "limit": 3,
+            },
+        )
+        print(wikipedia_response)
+
 
 asyncio.run(main())
 ```
 
-## Tool Contracts
-
-### `web_search`
-
-Accepted arguments:
-
-- `query`
-- `categories`
-- `engines`
-- `language`
-- `time_range`
-- `safe_search`
-- `page`
-- `limit`
-
-Returned payload:
-
-- `query`
-- `number_of_results`
-- `suggestions`
-- `answers`
-- `infoboxes`
-- `results`
-
-Each item in `results` includes:
-
-- `title`
-- `url`
-- `content`
-- `engine`
-- `category`
-- `score`
-- `published_date`
-- `thumbnail`
-
-### `search_config`
-
-Returns:
-
-- `instance_name`
-- `default_locale`
-- `default_theme`
-- `safe_search`
-- `categories`
-- `engines`
-- `plugins`
-
-### `read_url`
-
-Accepted arguments:
-
-- `url` (required)
-- `max_chars` — cap on returned markdown length (default 4000, bounded by server config)
-- `max_body_bytes` — max HTTP response body size to download in bytes (default 5 MiB, bounded by `URL_READ_MAX_BYTES`)
-
-Returned payload:
-
-- `url`
-- `final_url`
-- `title`
-- `content_markdown`
-- `excerpt`
-- `content_type`
-- `status_code`
-
 ## Local Tests
 
-Install the package and test dependencies, then run `pytest`. On Windows, use the
-project virtualenv interpreter:
+Install the package and test dependencies, then run `pytest`. On Windows, use
+the project virtualenv interpreter:
 
 ```powershell
 .\.venv\Scripts\python.exe -m pip install -e ".[dev]"
@@ -221,10 +216,16 @@ pytest
 
 ## Notes
 
+- The general endpoint is implemented in `mcp_server/` and currently published
+  as the `searxng-mcp-search` Python package/script.
 - SearXNG JSON output is enabled in `searxng/core-config/settings.yml`.
 - The limiter is enabled and backed by Valkey.
 - SearXNG itself does not publish a host port in the default Compose setup.
+- The current specialized catalog includes Wikipedia only, but
+  `contracts/specialized/` is meant to grow as new domain-specific endpoints
+  are added.
 
 ## License
 
-This project is available under the [MIT License](https://opensource.org/license/mit).
+This project is available under the
+[MIT License](https://opensource.org/license/mit).
