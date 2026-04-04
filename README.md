@@ -15,6 +15,8 @@ Today this repository ships:
   [Mozilla Readability](https://github.com/mozilla/readability)
 - a specialized encyclopedia endpoint backed by
   [wikipedia-mcp](https://pypi.org/project/wikipedia-mcp/)
+- a specialized academic paper endpoint backed by
+  [arxiv-mcp-server](https://github.com/blazickjp/arxiv-mcp-server)
 
 ## Concept
 
@@ -38,6 +40,7 @@ endpoint contract.
 | --- | --- | --- | --- |
 | General | `http://localhost:8000/mcp` | Broad web search, page reading, and search capability discovery | `web_search`, `read_url`, `search_config` |
 | Specialized | `http://localhost:8001/mcp` | Encyclopedic and subject-area research through Wikipedia | `search_wikipedia`, `get_article`, `get_summary`, ... |
+| Specialized | `http://localhost:8002/mcp` | Scientific paper search, metadata lookup, download, semantic search, and reading through arXiv | `search_papers`, `get_abstract`, `download_paper`, `semantic_search`, `reindex`, `list_papers`, `read_paper` |
 
 ## Services In The Compose Stack
 
@@ -51,6 +54,9 @@ endpoint contract.
   that exposes the general tools
 - `wikipedia-mcp` as a separate Streamable HTTP server for the specialized
   Wikipedia toolset
+- `arxiv-mcp` as a separate Streamable HTTP server for the specialized arXiv
+  paper toolset, built from upstream source and published through a local
+  [FastMCP](https://github.com/jlowin/fastmcp) adapter
 
 SearXNG and Readability stay on the internal Compose network by default. Only
 the MCP endpoints are exposed on the host.
@@ -65,6 +71,7 @@ capability class under `contracts/`:
 - `contracts/general/read_url.md`
 - `contracts/general/search_config.md`
 - `contracts/specialized/wikipedia.md`
+- `contracts/specialized/arxiv.md`
 
 The general endpoint contracts are owned by this repository. Specialized
 endpoint contracts may wrap upstream MCP packages; in that case this repository
@@ -112,6 +119,20 @@ To use a Wikipedia country/locale instead of a raw language code, override the
 `wikipedia-mcp` service `command` in Compose (for example `--country US`) as
 documented in [wikipedia-mcp](https://pypi.org/project/wikipedia-mcp/).
 
+Specialized ArXiv endpoint (`arxiv-mcp`) variables:
+
+- `ARXIV_MCP_PORT` default `8002`
+- `ARXIV_UPSTREAM_REF` default `main`; git ref from
+  [blazickjp/arxiv-mcp-server](https://github.com/blazickjp/arxiv-mcp-server)
+  that is baked into the local image at build time
+- `ARXIV_STORAGE_PATH` default `/app/papers`; passed to the upstream server as
+  `--storage-path` and backed by the named volume `arxiv_papers`
+
+The upstream `arxiv-mcp-server` package currently runs over stdio. This
+toolkit builds its own container from the upstream source repository and
+publishes a Streamable HTTP endpoint at `/mcp` through the local adapter in
+`arxiv_mcp/app.py`.
+
 ## Run The Stack
 
 ```bash
@@ -123,6 +144,8 @@ Default host endpoints:
 - General MCP endpoint: `http://localhost:8000/mcp`
 - General health endpoint: `http://localhost:8000/healthz`
 - Specialized Wikipedia MCP endpoint: `http://localhost:8001/mcp`
+- Specialized ArXiv MCP endpoint: `http://localhost:8002/mcp`
+- Specialized ArXiv health endpoint: `http://localhost:8002/healthz`
 
 ### IDE / Cursor
 
@@ -136,6 +159,9 @@ Point each server at its Streamable HTTP URL:
     },
     "wikipedia-research": {
       "url": "http://localhost:8001/mcp"
+    },
+    "arxiv-research": {
+      "url": "http://localhost:8002/mcp"
     }
   }
 }
@@ -149,7 +175,7 @@ Check general endpoint readiness:
 curl http://localhost:8000/healthz
 ```
 
-Call both MCP endpoints from Python with
+Call all three MCP endpoints from Python with
 [FastMCP](https://github.com/jlowin/fastmcp)'s client:
 
 ```python
@@ -169,10 +195,10 @@ async def main() -> None:
                 "categories": ["general"],
             },
         )
-        print(search_response)
+        print(search_response.data)
 
         config_response = await general_client.call_tool("search_config", {})
-        print(config_response)
+        print(config_response.data)
 
         page_response = await general_client.call_tool(
             "read_url",
@@ -181,7 +207,7 @@ async def main() -> None:
                 "max_chars": 4000,
             },
         )
-        print(page_response)
+        print(page_response.data)
 
     async with Client("http://127.0.0.1:8001/mcp") as wikipedia_client:
         wikipedia_response = await wikipedia_client.call_tool(
@@ -191,11 +217,66 @@ async def main() -> None:
                 "limit": 3,
             },
         )
-        print(wikipedia_response)
+        print(wikipedia_response.data)
+
+    async with Client("http://127.0.0.1:8002/mcp") as arxiv_client:
+        arxiv_search_response = await arxiv_client.call_tool(
+            "search_papers",
+            {
+                "query": 'ti:"Attention Is All You Need"',
+                "categories": ["cs.CL", "cs.LG"],
+                "max_results": 1,
+            },
+        )
+        print(arxiv_search_response.data)
+
+        arxiv_abstract_response = await arxiv_client.call_tool(
+            "get_abstract",
+            {
+                "paper_id": "1706.03762",
+            },
+        )
+        print(arxiv_abstract_response.data)
+
+        arxiv_download_response = await arxiv_client.call_tool(
+            "download_paper",
+            {
+                "paper_id": "1706.03762",
+            },
+        )
+        print(arxiv_download_response.data)
+
+        arxiv_library_response = await arxiv_client.call_tool("list_papers", {})
+        print(arxiv_library_response.data)
+
+        arxiv_semantic_search_response = await arxiv_client.call_tool(
+            "semantic_search",
+            {
+                "query": "attention mechanisms for sequence modeling",
+                "max_results": 3,
+            },
+        )
+        print(arxiv_semantic_search_response.data)
+
+        arxiv_paper_response = await arxiv_client.call_tool(
+            "read_paper",
+            {
+                "paper_id": "1706.03762",
+            },
+        )
+        print(arxiv_paper_response.data)
 
 
 asyncio.run(main())
 ```
+
+To verify persistence after the first download:
+
+1. Run the Python smoke test above once.
+2. Restart only the specialized paper service with
+   `docker compose restart arxiv-mcp`.
+3. Re-run `list_papers` against `http://127.0.0.1:8002/mcp` and confirm that
+   paper `1706.03762` is still present.
 
 ## Local Tests
 
@@ -221,7 +302,21 @@ pytest
 - SearXNG JSON output is enabled in `searxng/core-config/settings.yml`.
 - The limiter is enabled and backed by Valkey.
 - SearXNG itself does not publish a host port in the default Compose setup.
-- The current specialized catalog includes Wikipedia only, but
+- `arxiv-mcp` wraps the upstream `arxiv-mcp-server` package with
+  a local FastMCP adapter because the upstream server currently ships as a
+  stdio MCP server.
+- `arxiv-mcp` is built from the upstream
+  [blazickjp/arxiv-mcp-server](https://github.com/blazickjp/arxiv-mcp-server)
+  source repository, using `ARXIV_UPSTREAM_REF` with default `main`.
+- The arXiv HTTP adapter currently exposes:
+  `search_papers`, `get_abstract`, `download_paper`,
+  `semantic_search`, `reindex`, `list_papers`, and `read_paper`.
+- `semantic_search` works over the local downloaded paper library and depends on
+  the upstream `pro` extras being present in the built image.
+- The adapter exposes `http://localhost:8002/healthz` for container health
+  checks.
+- Downloaded arXiv papers are stored in the named volume `arxiv_papers`.
+- The current specialized catalog includes Wikipedia and arXiv, but
   `contracts/specialized/` is meant to grow as new domain-specific endpoints
   are added.
 

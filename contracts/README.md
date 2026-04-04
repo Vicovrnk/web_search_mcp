@@ -20,6 +20,7 @@ Each specialized capability gets its own endpoint and its own contract
 document.
 
 - [Wikipedia](specialized/wikipedia.md)
+- [ArXiv](specialized/arxiv.md)
 
 ## Extension Rules
 
