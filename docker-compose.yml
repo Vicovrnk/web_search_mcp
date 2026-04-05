@@ -1,3 +1,5 @@
+name: open_information_mcp
+
 services:
   valkey:
     image: valkey/valkey:8-alpine

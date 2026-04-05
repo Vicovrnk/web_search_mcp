@@ -28,6 +28,10 @@ Run the full toolkit locally with the default settings:
 docker compose up --build
 ```
 
+The Compose stack now uses the default project name `open_information_mcp`, so
+generated Docker container, network, and volume names use that prefix by
+default.
+
 If you want to override ports or timeouts, create `.env` first using
 `.env.example`, then start the stack.
 
@@ -122,6 +126,10 @@ ownership clearly.
 Environment variables are optional because Compose provides sensible defaults.
 If you want overrides, define them in `.env`.
 
+The Compose file sets the default project name to `open_information_mcp`.
+Internal service hostnames still stay `valkey`, `searxng`, `readability`,
+`mcp-web-search`, `wikipedia-mcp`, and `arxiv-mcp`.
+
 General endpoint (`mcp-web-search`) variables:
 
 - `MCP_PORT` default `8000`
@@ -172,6 +180,10 @@ publishes a Streamable HTTP endpoint at `/mcp` through the local adapter in
 docker compose up --build
 ```
 
+Generated Docker resources now use the Compose project name
+`open_information_mcp`. Service names inside the stack are unchanged, so
+commands such as `docker compose restart arxiv-mcp` still work as before.
+
 Default host endpoints:
 
 - General MCP endpoint: `http://localhost:8000/mcp`
@@ -179,6 +191,30 @@ Default host endpoints:
 - Specialized Wikipedia MCP endpoint: `http://localhost:8001/mcp`
 - Specialized ArXiv MCP endpoint: `http://localhost:8002/mcp`
 - Specialized ArXiv health endpoint: `http://localhost:8002/healthz`
+
+### Existing Installations: Volume Migration
+
+If you already used this stack before the project rename, your old Docker
+volumes may still use the previous default prefix, for example
+`web_search_mcp_searxng_cache` and `web_search_mcp_arxiv_papers`. The current
+Compose project creates `open_information_mcp_searxng_cache` and
+`open_information_mcp_arxiv_papers` instead.
+
+If you want to preserve old data, stop the stack and copy the volume contents
+once before your first long-running session under the new project name:
+
+```bash
+docker volume create open_information_mcp_searxng_cache
+docker volume create open_information_mcp_arxiv_papers
+
+docker run --rm -v web_search_mcp_searxng_cache:/from -v open_information_mcp_searxng_cache:/to alpine sh -c "cp -a /from/. /to/"
+
+docker run --rm -v web_search_mcp_arxiv_papers:/from -v open_information_mcp_arxiv_papers:/to alpine sh -c "cp -a /from/. /to/"
+```
+
+If your old project prefix was not `web_search_mcp`, replace it in the source
+volume names above. If you do not need the previous cache or downloaded papers,
+you can skip this migration and let Docker create fresh volumes.
 
 ### IDE / Cursor
 
