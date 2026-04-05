@@ -18,6 +18,37 @@ Today this repository ships:
 - a specialized academic paper endpoint backed by
   [arxiv-mcp-server](https://github.com/blazickjp/arxiv-mcp-server)
 
+## Quick Start
+
+Prerequisites: Docker Engine or Docker Desktop, plus Docker Compose.
+
+Run the full toolkit locally with the default settings:
+
+```bash
+docker compose up --build
+```
+
+If you want to override ports or timeouts, create `.env` first using
+`.env.example`, then start the stack.
+
+Connect your MCP client to:
+
+- `general-web-tools`: `http://localhost:8000/mcp`
+- `wikipedia-research`: `http://localhost:8001/mcp`
+- `arxiv-research`: `http://localhost:8002/mcp`
+
+Quick verification:
+
+- general health: `http://localhost:8000/healthz`
+- arXiv health: `http://localhost:8002/healthz`
+
+Next steps:
+
+- use the [Researcher Agent Pattern](docs/agent-patterns/researcher-agent.md)
+  for a copy/paste deep-research workflow that returns Markdown
+- jump to [Configuration](#configuration) for environment overrides
+- jump to [Contract Catalog](#contract-catalog) for per-tool details
+
 ## Concept
 
 The toolkit is built around a simple separation of responsibilities:
@@ -67,6 +98,8 @@ The high-level concept lives in this README. Detailed contracts are grouped by
 capability class under `contracts/`:
 
 - `contracts/README.md` for the contract catalog and extension rules
+- [Researcher Agent Pattern](docs/agent-patterns/researcher-agent.md) for a
+  concrete multi-endpoint deep-research workflow in Markdown
 - `contracts/general/web_search.md`
 - `contracts/general/read_url.md`
 - `contracts/general/search_config.md`
