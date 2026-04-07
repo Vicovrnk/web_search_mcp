@@ -146,8 +146,18 @@ General endpoint (`mcp-web-search`) variables:
 - `URL_READ_MAX_CHARS` default `12000`
 - `READABILITY_SERVICE_URL` default `http://readability:3010`
 - `READABILITY_FALLBACK_ON_FAILURE` default `true`
-- `VERIFY_SSL` default `false`
+- `VERIFY_SSL` default `true`; set to `false` only to skip certificate
+  validation for outbound HTTPS requests made by the running
+  `mcp-web-search` service
 - `USER_AGENT` default `searxng-mcp-search/0.1.0`
+
+Python image build variable:
+
+- `PYTHON_INSTALL_VERIFY_SSL` default `true`; applies to the
+  `mcp-web-search`, `wikipedia-mcp`, and `arxiv-mcp` Docker builds. Set it to
+  `false` only on machines that cannot validate certificates while `pip`
+  downloads dependencies. The `arxiv-mcp` build uses the same toggle for the
+  upstream HTTPS `git clone`.
 
 Specialized Wikipedia endpoint (`wikipedia-mcp`) variables:
 
@@ -179,6 +189,38 @@ publishes a Streamable HTTP endpoint at `/mcp` through the local adapter in
 ```bash
 docker compose up --build
 ```
+
+Make sure Docker Desktop or the Docker Engine daemon is running before you
+start any Compose build command.
+
+If you only want to validate image builds without starting the containers, run:
+
+```bash
+docker compose build
+```
+
+If a machine cannot validate certificates during Python dependency
+installation, either set `PYTHON_INSTALL_VERIFY_SSL=false` in `.env` before
+building or export it just for the build command:
+
+```powershell
+$env:PYTHON_INSTALL_VERIFY_SSL = "false"
+docker compose up --build
+```
+
+```bash
+PYTHON_INSTALL_VERIFY_SSL=false docker compose up --build
+```
+
+To validate the insecure build path on Windows PowerShell without editing
+`.env`, this one-liner works as well:
+
+```powershell
+cmd /c "set PYTHON_INSTALL_VERIFY_SSL=false&& docker compose --progress=plain build"
+```
+
+`VERIFY_SSL=false` is separate: it only affects outbound HTTPS verification in
+the running `mcp-web-search` container.
 
 Generated Docker resources now use the Compose project name
 `open_information_mcp`. Service names inside the stack are unchanged, so
@@ -361,6 +403,19 @@ On macOS or Linux:
 
 ```bash
 python -m pip install -e ".[dev]"
+pytest
+```
+
+If the local machine cannot validate certificates during `pip install`, use
+trusted hosts for the install step:
+
+```powershell
+.\.venv\Scripts\python.exe -m pip install --trusted-host pypi.org --trusted-host files.pythonhosted.org -e ".[dev]"
+.\.venv\Scripts\python.exe -m pytest
+```
+
+```bash
+python -m pip install --trusted-host pypi.org --trusted-host files.pythonhosted.org -e ".[dev]"
 pytest
 ```
 

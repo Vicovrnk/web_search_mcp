@@ -63,6 +63,8 @@ services:
     build:
       context: .
       dockerfile: mcp_server/Dockerfile
+      args:
+        PYTHON_INSTALL_VERIFY_SSL: ${PYTHON_INSTALL_VERIFY_SSL:-true}
     restart: unless-stopped
     depends_on:
       searxng:
@@ -83,7 +85,7 @@ services:
       URL_READ_MAX_CHARS: ${URL_READ_MAX_CHARS:-12000}
       READABILITY_SERVICE_URL: ${READABILITY_SERVICE_URL:-http://readability:3010}
       READABILITY_FALLBACK_ON_FAILURE: ${READABILITY_FALLBACK_ON_FAILURE:-true}
-      VERIFY_SSL: ${VERIFY_SSL:-false}
+      VERIFY_SSL: ${VERIFY_SSL:-true}
       USER_AGENT: ${USER_AGENT:-searxng-mcp-search/0.1.0}
       MCP_HOST: 0.0.0.0
       MCP_PORT: 8000
@@ -108,6 +110,8 @@ services:
     build:
       context: ./wikipedia_mcp
       dockerfile: Dockerfile
+      args:
+        PYTHON_INSTALL_VERIFY_SSL: ${PYTHON_INSTALL_VERIFY_SSL:-true}
     restart: unless-stopped
     environment:
       WIKIPEDIA_LANGUAGE: ${WIKIPEDIA_LANGUAGE:-en}
@@ -132,6 +136,7 @@ services:
       context: ./arxiv_mcp
       dockerfile: Dockerfile
       args:
+        PYTHON_INSTALL_VERIFY_SSL: ${PYTHON_INSTALL_VERIFY_SSL:-true}
         ARXIV_UPSTREAM_REF: ${ARXIV_UPSTREAM_REF:-main}
     restart: unless-stopped
     environment:
